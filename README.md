@@ -1,2 +1,3 @@
-# PostScript-File-Raku
+# PostScript::File
+
 Raku version of Perl's PostScript::File
