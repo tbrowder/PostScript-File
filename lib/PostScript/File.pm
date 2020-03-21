@@ -1,3 +1,5 @@
+=begin comment
+FROM THE ORIGINAL PERL VERSION:
 #---------------------------------------------------------------------
 package PostScript::File;
 #
@@ -21,23 +23,10 @@ package PostScript::File;
 use 5.008;
 our $VERSION = '2.23';          ## no critic
 # This file is part of {{$dist}} {{$dist_version}} ({{$date}})
+END OF INFORMATION FROM THE ORIGINAL PERL VERSION
+=end comment
 
-use strict;
-use warnings;
-use Carp 'croak';
-use File::Spec ();
-use Scalar::Util 'openhandle';
-use Exporter 5.57 'import';
-
-our %EXPORT_TAGS = (metrics_methods => [qw(
-  encode_text decode_text convert_hyphens set_auto_hyphen
-)]);
-
-our @EXPORT_OK = (qw(check_tilde check_file incpage_label incpage_roman
-                    array_as_string pstr quote_text str),
-                  # These are only for PostScript::File::Metrics:
-                  @{ $EXPORT_TAGS{metrics_methods} });
-
+=begin comment
 # Prototypes for functions only
  ## no critic (ProhibitSubroutinePrototypes)
  sub incpage_label ($);
@@ -45,6 +34,7 @@ our @EXPORT_OK = (qw(check_tilde check_file incpage_label incpage_roman
  sub check_tilde ($);
  sub check_file ($;$$);
  ## use critic
+=end comment
 
 # global constants
 our %encoding_def; # defined near _set_reencode
