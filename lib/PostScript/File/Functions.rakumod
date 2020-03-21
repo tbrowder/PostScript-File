@@ -1,28 +1,4 @@
-#---------------------------------------------------------------------
-package PostScript::File::Functions;
-#
-# Copyright 2012 Christopher J. Madsen
-#
-# Author: Christopher J. Madsen <perl@cjmweb.net>
-# Created:  2 Feb 2012
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the same terms as Perl itself.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See either the
-# GNU General Public License or the Artistic License for more details.
-#
-# ABSTRACT: Collection of useful PostScript functions
-#---------------------------------------------------------------------
-
-use 5.008;
-use strict;
-use warnings;
-
-our $VERSION = '2.23';
-# This file is part of {{$dist}} {{$dist_version}} ({{$date}})
+unit module PostScript::File::Functions;
 
 use Carp qw(croak);
 use PostScript::File 2.20 (); # strip method

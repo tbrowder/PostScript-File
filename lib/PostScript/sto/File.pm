@@ -1,7 +1,11 @@
-unit module PostScript::File;
+#=============================================================================
+# FROM THE ORIGINAL PERL VERSION:
+#
+# This is retained mainly for its POD which has been greatly modified
+# or removed from the Raku version.
+#
+#=============================================================================
 
-=begin comment
-FROM THE ORIGINAL PERL VERSION:
 #---------------------------------------------------------------------
 package PostScript::File;
 #
@@ -21,9 +25,27 @@ package PostScript::File;
 #
 # ABSTRACT: Class for creating Adobe PostScript files
 #---------------------------------------------------------------------
-=end comment
 
-=begin comment
+use 5.008;
+our $VERSION = '2.23';          ## no critic
+# This file is part of {{$dist}} {{$dist_version}} ({{$date}})
+
+use strict;
+use warnings;
+use Carp 'croak';
+use File::Spec ();
+use Scalar::Util 'openhandle';
+use Exporter 5.57 'import';
+
+our %EXPORT_TAGS = (metrics_methods => [qw(
+  encode_text decode_text convert_hyphens set_auto_hyphen
+)]);
+
+our @EXPORT_OK = (qw(check_tilde check_file incpage_label incpage_roman
+                    array_as_string pstr quote_text str),
+                  # These are only for PostScript::File::Metrics:
+                  @{ $EXPORT_TAGS{metrics_methods} });
+
 # Prototypes for functions only
  ## no critic (ProhibitSubroutinePrototypes)
  sub incpage_label ($);
@@ -31,7 +53,6 @@ package PostScript::File;
  sub check_tilde ($);
  sub check_file ($;$$);
  ## use critic
-=end comment
 
 # global constants
 our %encoding_def; # defined near _set_reencode
@@ -44,7 +65,66 @@ BEGIN {
   $ttftotype42 = 'ttftotype42' unless defined $ttftotype42;
 }
 
-=begin pod
+=head1 SYNOPSIS
+
+=head2 Simplest
+
+A 'hello world' program:
+
+    use PostScript::File 2;
+
+    my $ps = PostScript::File->new(reencode => 'cp1252');
+
+    $ps->add_to_page( <<END_PAGE );
+        /Helvetica findfont
+        12 scalefont
+        setfont
+        72 300 moveto
+        (hello world) show
+    END_PAGE
+
+    $ps->output( "test" );
+
+=head2 All options
+
+    my $ps = PostScript::File->new(
+        paper => 'Letter',
+        height => 500,
+        width => 400,
+        bottom => 30,
+        top => 30,
+        left => 30,
+        right => 30,
+        clip_command => 'stroke',
+        clipping => 1,
+        eps => 1,
+        dir => '~/foo',
+        file => "bar",
+        landscape => 0,
+
+        headings => 1,
+        reencode => 'cp1252',
+        font_suffix => '-iso',
+        need_fonts  => [qw(Helvetica Helvetica-Bold)],
+
+        errors => 1,
+        errmsg => 'Failed:',
+        errfont => 'Helvetica',
+        errsize => 12,
+        errx => 72,
+        erry => 300,
+
+        debug => 2,
+        db_active => 1,
+        db_xgap => 120,
+        db_xtab => 8,
+        db_base => 300,
+        db_ytop => 500,
+        db_color => '1 0 0 setrgbcolor',
+        db_font => 'Times-Roman',
+        db_fontsize => 11,
+        db_bufsize => 256,
+    );
 
 =head1 DESCRIPTION
 
@@ -52,11 +132,11 @@ PostScript::File is a class that writes PostScript files following
 Adobe's Document Structuring Conventions (DSC).  You should be
 familiar with the DSC if you're using this class directly; consult the
 I<PostScript Language Document Structuring Conventions Specification>
-linked to in L<"SEE ALSO">.
+linked to in L</"SEE ALSO">.
 
 There are also a number of modules that build upon PostScript::File to
 produce various kinds of documents without requiring knowledge of
-PostScript.  These are listed in L<"SEE ALSO">.
+PostScript.  These are listed in L</"SEE ALSO">.
 
 It is possible to construct and output files in either normal
 PostScript (*.ps files) or as Encapsulated PostScript (*.epsf or
@@ -72,11 +152,9 @@ Documents can typically be built using only these functions:
     newpage       Begins a new page in the document
     output        Construct the file and saves it
 
-The rest of the module involves fine-tuning this.  Some settings only
-really make sense when given once, while others can control each page
-independently.  See C<new> for the functions that duplicate option
-settings, they all have C<get_> counterparts.  The following provide
-additional support.
+The rest of the module involves fine-tuning this.  Some settings only really make sense when given once, while
+others can control each page independently.  See C<new> for the functions that duplicate option settings, they all
+have C<get_> counterparts.  The following provide additional support.
 
     get/set_bounding_box
     get/set_page_bounding_box
@@ -87,8 +165,8 @@ additional support.
     draw_bounding_box
     clip_bounding_box
 
-The functions which insert entries into each of the DSC sections all
-begin with 'add_'.  They also have C<get_> counterparts.
+The functions which insert entries into each of the DSC sections all begin with 'add_'.  They also have C<get_>
+counterparts.
 
     add_comment
     add_preview
@@ -101,8 +179,7 @@ begin with 'add_'.  They also have C<get_> counterparts.
     add_page_trailer
     add_trailer
 
-Finally, there are a few stand-alone functions.  These are not methods
-and are available for export if requested.
+Finally, there are a few stand-alone functions.  These are not methods and are available for export if requested.
 
     check_tilde
     check_file
@@ -127,27 +204,26 @@ PostScript.)
 
 Unicode has additional non-ambiguous characters: HYPHEN (U+2010),
 NON-BREAKING HYPHEN (U+2011), and MINUS SIGN (U+2212).  The first two
-always indicate C</hyphen>, and the last is always C</minus>.  When
-you set C<reencode> to C<cp1252> or C<iso-8859-1>, those characters
-will be handled automatically.
+always indicate C</hyphen>, and the last is always C</minus>.  When you set
+C<reencode> to C<cp1252> or C<iso-8859-1>, those characters will be
+handled automatically.
 
 To make it easier to handle strings containing HYPHEN-MINUS,
 PostScript::File provides the L</auto_hyphen> attribute.  When this is
 true (the default when using C<cp1252> or C<iso-8859-1>), the L</pstr>
 method will automatically translate HYPHEN-MINUS to either HYPHEN or
-MINUS SIGN.  (This happens only when C<pstr> is called as an object
-method.)
+MINUS SIGN.  (This happens only when C<pstr> is called as an object method.)
 
 The rule is that if a HYPHEN-MINUS is surrounded by whitespace, or
 surrounded by digits, or it's preceded by whitespace or punctuation
 and followed by a digit, or it's followed by a currency symbol, it's
 translated to MINUS SIGN.  Otherwise, it's translated to HYPHEN.
 
-=end pod
+=cut
 
 # define page sizes here (a4, letter, etc)
 # should be Properly Cased
-our %size = %(
+our %size = (
     a0                    => '2384 3370',
     a1                    => '1684 2384',
     a2                    => '1191 1684',
@@ -192,7 +268,7 @@ our %size = %(
 
 
 # The 13 standard fonts that are available on all PS 1 implementations:
-our @fonts = <
+our @fonts = qw(
     Courier
     Courier-Bold
     Courier-BoldOblique
@@ -206,63 +282,17 @@ our @fonts = <
     Times-BoldItalic
     Times-Italic
     Symbol
->;
-
+);
 
 # 5.008-compatible version of defined-or:
-#sub _def { for (@_) { return $_ if defined $_ } undef }
+sub _def { for (@_) { return $_ if defined $_ } undef }
 
-class PostScript::File is export {
-    has $.Comments    is rw = "",  # must include leading '%%' and end with '\n'
-    has $.DocSupplied is rw = "",
-    has $.Preview     is rw = "",
-    has $.Defaults    is rw = "",
-    has $.Fonts       is rw = "",
-    has $.Resources   is rw = "",
-    has $.Functions   is rw = "",
-    has $.Setup       is rw = "",
-    has $.PageSetup   is rw = "",
-    has @.Pages       is rw = [],  # indexed by $o->{p}, 0 based
-    has $.PageTrailer is rw = "",
-    has $.Trailer     is rw = "",
-
-    # internal
-    has $.p           is rw = 0,   # current page (0 based)
-    has $.pagecount   is rw = 0,   # number of pages
-    has @.page        is rw = [],  # array of labels, indexed by $o->{p}
-    has @.pagelandsc  is rw = [],  # orientation of each page individually
-    has @.pageclip    is rw = [],  # clip to pagebbox
-    has @.pagebbox    is rw = [],  # array of bbox, indexed by $o->{p}
-    has @.bbox        is rw = [],  # [ x0, y0, x1, y1 ]
-    has @.embed_fonts is rw = [],  # fonts that have been embedded
-    has %.needed      is rw = %(), # DocumentNeededResources
-
-    has %.vars        is rw = %(), # permanent user variables
-    has %.pagevars    is rw = %(), # user variables reset with each new page
-
-    ## Paper layout
-    #croak "PNG output is no longer supported.  Use PostScript::Convert instead"
-    #    if $opt->{png};
-
-    has $.eps       is rw; #}      = !!$opt->{eps} + 0;
-    has $.file_ext  is rw; #} = $opt->{file_ext};
-    has $.filename  is rw; #(@$opt{qw(file dir)});
-    has $.paper     is rw; #    ( $opt->{paper} );
-    has $.width     is rw; #( $opt->{width} );
-    has $.height    is rw; # ( $opt->{height} );
-    has $.landscape is rw; # ( $opt->{landscape} );
-
-}
-
-=begin comment
-# this is the original PostScript::File class--translate into Raku
 sub new {
     my ($class, @options) = @_;
     my $opt = {};
     if (@options == 1) {
-        $opt = @options[0];
-    }
-    else {
+        $opt = $options[0];
+    } else {
         %$opt = @options;
     }
 
@@ -361,13 +391,8 @@ sub new {
     ## Finish
     return $o;
 }
-=end comment
 
-=finish
-
-=begin pod
-
-#=method-construct new
+=method-construct new
 
   $ps = PostScript::File->new(options)
 
@@ -410,7 +435,7 @@ There are four options which control how much gets put into the resulting file.
 
 =head4 debug
 
-#over 6
+=over 6
 
 =item C<undef>
 
@@ -433,12 +458,11 @@ do nothing.  See L</"POSTSCRIPT DEBUGGING SUPPORT"> for details of the functions
 
 Loads the debug functions and gives some reassuring output at the start and a stack dump at the end of each page.
 
-A mark is placed on the stack at the beginning of each page and
-'cleartomark' is given at the end, avoiding potential
-C<invalidrestore> errors.  Note, however, that if the page does not
-end with a clean stack, it will fail when debugging is turned off.
+A mark is placed on the stack at the beginning of each page and 'cleartomark' is given at the end, avoiding
+potential C<invalidrestore> errors.  Note, however, that if the page does not end with a clean stack, it will fail
+when debugging is turned off.
 
-#=back
+=back
 
 =head4 errors
 
@@ -456,13 +480,13 @@ name.  (Default: false)
 The comments inserted when C<headings> is true are:
 
   %%For: USER@HOSTNAME
-  %%Creator: Perl module PostScript::File v\{\{$version}}
+  %%Creator: Perl module PostScript::File v{{$version}}
   %%CreationDate: Sun Jan  1 00:00:00 2012
   %%DocumentMedia: US-Letter 612 792 80 ( ) ( )
 
 USER comes from C<getlogin() || getpwuid($<)>, and HOSTNAME comes from
 L<Sys::Hostname>.  The DocumentMedia values come from the
-L<paper size attributes/"Paper Size and Margins">.  The
+L<paper size attributes|/"Paper Size and Margins">.  The
 DocumentMedia comment is omitted from EPS files.
 
 If you want different values, leave C<headings> false and use
@@ -660,7 +684,7 @@ X position of the error message on the page.  (Default: (72))
 
 Y position of the error message on the page.  (Default: (72))
 
-=end pod
+=cut
 
 sub newpage {
     my ($o, $page) = @_;
@@ -682,8 +706,6 @@ sub newpage {
     $o->{pagevars} = {};
 }
 
-=begin pod
-
 =method-main newpage
 
   $ps->newpage( [$page] )
@@ -693,7 +715,7 @@ Generate a new PostScript page, unless in a EPS file when it is ignored.
 If C<$page> is not specified the previous page's label is incremented
 using the L</incpage_handler>.
 
-=end pod
+=cut
 
 sub _pre_pages
 {
@@ -1265,8 +1287,6 @@ END_PAGE_TRAILER
     }
 }
 
-=begin pod
-
 =method-main output
 
   $ps->output( [$file, [$dir]] )
@@ -1312,7 +1332,7 @@ PostScript interpreter.
 
 If C<$verbatim> is true, this is equivalent to C<< $ps->output(undef) >>.
 
-=begin pod
+=cut
 
 sub as_string { shift->output(undef) }
 
@@ -1381,8 +1401,6 @@ sub _print_file
 # Expects file name and contents
 #---------------------------------------------------------------------
 
-=begin pod
-
 =attr auto_hyphen
 
   $ps = PostScript::File->new( auto_hyphen => $translate )
@@ -1396,7 +1414,7 @@ hyphen-minus translation when called as an object method (but only if
 the document uses character set translation).  (Default: true)
 See L</"Hyphens and Minus Signs">.
 
-=end pod
+=cut
 
 sub get_auto_hyphen {
     my $o = shift;
@@ -1420,8 +1438,6 @@ sub set_filename {
                       : undef);
 }
 
-=begin pod
-
 =attr filename
 
   $ps = PostScript::File->new( file => $file, [dir => $dir] )
@@ -1430,7 +1446,7 @@ sub set_filename {
 
   $ps->set_filename( $file, [$dir] )
 
-#over 4
+=over 4
 
 =item C<$file>
 
@@ -1444,7 +1460,7 @@ An optional directory name.  If present (and C<$file> is not already
 an absolute path), it is prepended to C<$file>.  If no C<$file> was
 specified, C<$dir> is ignored.
 
-#=back
+=back
 
 The base filename for the output file(s).  When the filename is set,
 if that filename includes a directory component, the directories are
@@ -1502,7 +1518,7 @@ actual type of the output file, only its name.)
 C<$eps> is true if this is an Encapsulated PostScript document.
 False indicates an ordinary PostScript document.
 
-=end pod
+=cut
 
 sub get_file_ext {
     shift->{file_ext};
@@ -1514,8 +1530,6 @@ sub set_file_ext {
 }
 
 sub get_eps { my $o = shift; return $o->{eps}; }
-
-=begin pod
 
 =attr-paper paper
 
@@ -1540,7 +1554,7 @@ HEIGHT are numbers (in points).  This sets the paper size to "Custom".
 Setting this also sets L</bounding_box>, L</height>, and L</width>
 to the full height and width of the paper.
 
-=end pod
+=cut
 
 sub get_paper {
     my $o = shift;
@@ -1576,8 +1590,6 @@ sub set_paper {
     }
 }
 
-=begin pod
-
 =attr-paper width
 
   $ps = PostScript::File->new( width => $width )
@@ -1593,7 +1605,7 @@ the bounding box.
 Setting this sets L</paper> to "Custom" and the L</bounding_box> is
 expanded to the full width.
 
-=end pod
+=cut
 
 sub get_width {
     my $o = shift;
@@ -1615,8 +1627,6 @@ sub set_width {
     }
 }
 
-=begin pod
-
 =attr-paper height
 
   $ps = PostScript::File->new( height => $height )
@@ -1632,7 +1642,7 @@ bounding box.
 Setting this sets L</paper> to "Custom" and the L</bounding_box> is
 expanded to the full height.
 
-=end pod
+=cut
 
 sub get_height {
     my $o = shift;
@@ -1653,8 +1663,6 @@ sub set_height {
     }
 }
 
-=begin pod
-
 =attr-paper landscape
 
   $ps = PostScript::File->new( landscape => $landscape )
@@ -1669,7 +1677,7 @@ counter-clockwise, swapping the meaning of height & width.  (Default: false)
 In landscape mode the coordinates are rotated 90 degrees and the origin moved to the bottom left corner.  Thus the
 coordinate system appears the same to the user, with the origin at the bottom left.
 
-=end pod
+=cut
 
 sub get_landscape {
     my $o = shift;
@@ -1687,8 +1695,6 @@ sub set_landscape {
     }
 }
 
-=begin pod
-
 =attr clipping
 
   $ps = PostScript::File->new( clipping => $clipping )
@@ -1702,7 +1708,7 @@ bounding box.  This is the document's default value.  Each page has
 its own L</page_clipping> attribute, which is initialized to this
 default value when the page is created.  (Default: false)
 
-=end pod
+=cut
 
 sub get_clipping {
     my $o = shift;
@@ -1821,8 +1827,6 @@ our %encode_char = (
  65533 => pack(C => 0x3F), # U+FFFD REPLACEMENT CHARACTER
 );
 
-=begin pod
-
 =method-text encode_text
 
   $encoded_text = $ps->encode_text( $text )
@@ -1831,7 +1835,7 @@ This returns C<$text> converted to the document's character encoding.
 If C<$text> does not have the UTF-8 flag set, or the document is not
 using character translation, then it returns C<$text> as-is.
 
-=end pod
+=cut
 
 sub encode_text
 {
@@ -1856,8 +1860,6 @@ sub encode_text
   }
 } # end encode_text
 
-=begin pod
-
 =method-text decode_text
 
   $text = $ps->decode_text( $encoded_text, [$preserve_minus] )
@@ -1874,7 +1876,7 @@ C<$encoded_text> is not being returned as-is), then any HYPHEN-MINUS
 (U+2212).  This ensures that C<encode_text> will treat them as minus
 signs instead of hyphens.
 
-=end pod
+=cut
 
 sub decode_text
 {
@@ -1892,8 +1894,6 @@ sub decode_text
   }
 } # end decode_text
 
-=begin pod
-
 =method-text convert_hyphens
 
   $converted_text = $ps->convert_hyphens( $text )
@@ -1909,7 +1909,7 @@ the document's character encoding.
 If C<$text> does not contain any HYPHEN-MINUS characters, it is
 returned as-is.
 
-=end pod
+=cut
 
 sub convert_hyphens
 {
@@ -1940,8 +1940,6 @@ sub convert_hyphens
   }
 } # end convert_hyphens
 
-=begin pod
-
 =method-access get_metrics
 
   $metrics = $ps->get_metrics( $font, [$size, [$encoding]] )
@@ -1959,7 +1957,7 @@ No matter what encoding the font uses, the Metrics object will always
 use the same Unicode translation setting as this document.  It also
 inherits the current value of the L</auto_hyphen> attribute.
 
-=end pod
+=cut
 
 sub get_metrics
 {
@@ -1989,8 +1987,6 @@ sub get_metrics
   $metrics;
 } # end get_metrics
 #---------------------------------------------------------------------
-
-=begin pod
 
 =attr strip (attribute)
 
@@ -2026,7 +2022,7 @@ If C<$code> is C<undef>, it is left unchanged.
 When called with a single argument, strips C<$code> according to the
 current value of the C<strip> attribute.
 
-=end pod
+=cut
 
 sub get_strip {
     my $o = shift;
@@ -2105,8 +2101,6 @@ sub strip
 } # end strip
 #---------------------------------------------------------------------
 
-=begin pod
-
 =attr-page page_landscape
 
   $landscape = $ps->get_page_landscape( [$page] )
@@ -2119,7 +2113,7 @@ false)
 When a page is created, C<page_landscape> is initialized from the
 document's L</landscape> attribute.
 
-=end pod
+=cut
 
 sub get_page_landscape {
     my $o = shift;
@@ -2141,8 +2135,6 @@ sub set_page_landscape {
 
 #---------------------------------------------------------------------
 
-=begin pod
-
 =attr-page page_clipping
 
   $clipping = $ps->get_page_clipping( [$page] )
@@ -2155,7 +2147,7 @@ bounding box. (Default: false)
 When a page is created, C<page_clipping> is initialized from the
 document's L</clipping> attribute.
 
-=end pod
+=cut
 
 sub get_page_clipping {
     my $o = shift;
@@ -2168,8 +2160,6 @@ sub set_page_clipping {
     my $p = (@_ == 2) ? $o->_get_ordinal(shift) : $o->{p};
     $o->{pageclip}[$p] = (!!shift) + 0;
 }
-
-=begin pod
 
 =attr-page page_label
 
@@ -2189,7 +2179,7 @@ When a page is created, C<page_label> is initialized by passing the
 previous page's label to the L</incpage_handler>.  For the first page,
 it's initialized from the C<page> given to the constructor.
 
-=end pod
+=cut
 
 sub get_page_label {
     my $o = shift;
@@ -2201,8 +2191,6 @@ sub set_page_label {
     my $page = shift || 1;
     $o->{page}[$o->{p}] = $page;
 }
-
-=begin pod
 
 =attr incpage_handler
 
@@ -2221,7 +2209,7 @@ autoincrement operator) and L</incpage_roman> (which handles lowercase
 Roman numberals from i to xxxix, 1-39) functions for use as
 C<incpage_handler>.  (Default: C<\&incpage_label>)
 
-=end pod
+=cut
 
 sub get_incpage_handler {
     my $o = shift;
@@ -2232,8 +2220,6 @@ sub set_incpage_handler {
     my $o = shift;
     $o->{incpage} = shift || \&incpage_label;
 }
-
-=begin pod
 
 =attr order
 
@@ -2246,14 +2232,12 @@ C<%%PageOrder> DSC comment.  It must be one of "Ascend", "Descend" or
 "Special" (meaning a document manager must not reorder the pages).
 The default is C<undef>, meaning omit the C<%%PageOrder> comment.
 
-=end pod
+=cut
 
 sub get_order {
     my $o = shift;
     return $o->{order};
 }
-
-=begin pod
 
 =attr title
 
@@ -2266,14 +2250,12 @@ default (C<undef>) means to use the document's filename as the title.
 If no filename is available when the document is output, the
 C<%%Title> comment wil be omitted.
 
-=end pod
+=cut
 
 sub get_title {
     my $o = shift;
     return $o->{title};
 }
-
-=begin pod
 
 =attr version
 
@@ -2286,15 +2268,12 @@ C<$version> should be a string in the form S<C<VERNUM REV>>, where
 C<VERNUM> is a floating point number and C<REV> is an unsigned
 integer.  (Default: C<undef>, meaning omit the C<%%Version> comment)
 
-=end pod
-
+=cut
 
 sub get_version {
     my $o = shift;
     return $o->{version};
 }
-
-=begin pod
 
 =attr langlevel
 
@@ -2318,7 +2297,7 @@ C<$langlevel>, but only if the current level is less than
 C<$langlevel>.  It returns the value of C<langlevel>, which will be
 greater than or equal to C<$langlevel>.
 
-=end pod
+=cut
 
 sub get_langlevel {
     my $o = shift;
@@ -2332,8 +2311,6 @@ sub set_min_langlevel
   return $o->{langlevel};
 }
 
-=begin pod
-
 =attr extensions
 
   $ps = PostScript::File->new( extensions => $extensions )
@@ -2344,14 +2321,12 @@ The PostScript extensions required by this document, for use in the
 C<%%Extensions> DSC comment.  (Default: C<undef>, meaning omit the
 C<%%Extensions> comment)
 
-=end pod
+=cut
 
 sub get_extensions {
     my $o = shift;
     return $o->{extensions};
 }
-
-=begin pod
 
 =attr-paper bounding_box
 
@@ -2373,7 +2348,7 @@ Each page also has an individual L</page_bounding_box>, which is
 initialized from the document's C<bounding_box> when the page is
 created.
 
-=end pod
+=cut
 
 sub get_bounding_box {
     my $o = shift;
@@ -2385,8 +2360,6 @@ sub set_bounding_box {
     $o->{bbox} = [ $x0, $y0, $x1, $y1 ] if (defined $y1);
     $o->set_clipping(1);
 }
-
-=begin pod
 
 =method-access get_printable_width
 
@@ -2400,7 +2373,7 @@ sub set_bounding_box {
 
 (v2.10) Returns the height of the document's bounding box (S<C<ury - lly>>).
 
-=end pod
+=cut
 
 sub get_printable_width
 {
@@ -2413,8 +2386,6 @@ sub get_printable_height
   my $bb = shift->{bbox};
   return $bb->[3] - $bb->[1];
 } # end get_printable_height
-
-=begin pod
 
 =attr-page page_bounding_box
 
@@ -2432,7 +2403,7 @@ C<< $ps->set_page_clipping(0) >> afterwards.
 When a page is created, C<page_bounding_box> is initialized from the
 document's L</bounding_box> attribute.
 
-=end pod
+=cut
 
 sub get_page_bounding_box {
     my $o = shift;
@@ -2450,8 +2421,6 @@ sub set_page_bounding_box {
     }
 }
 
-=begin pod
-
 =method-access get_page_printable_width
 
   $width = $ps->get_page_printable_width( [$page] )
@@ -2464,7 +2433,7 @@ sub set_page_bounding_box {
 
 (v2.10) Returns the height of the page's bounding box (S<C<ury - lly>>).
 
-=end pod
+=cut
 
 sub get_page_printable_width
 {
@@ -2480,8 +2449,6 @@ sub get_page_printable_height
   return $bb->[3] - $bb->[1];
 } # end get_page_printable_height
 
-=begin pod
-
 =method-access set_page_margins
 
   $ps->set_page_margins( [$page,] $left, $bottom, $right, $top )
@@ -2491,7 +2458,7 @@ specified margins.  It also automatically enables clipping for the
 page.  If this isn't what you want, call C<< $ps->set_page_clipping(0) >>
 afterwards.
 
-=end pod
+=cut
 
 sub set_page_margins {
     my $o = shift;
@@ -2537,22 +2504,18 @@ sub _get_ordinal
     return $o->{p};
 }
 
-=begin pod
-
 =method-access get_pagecount
 
   $pages = $ps->get_pagecount
 
 Returns the number of pages currently in the document.
 
-=end pod
+=cut
 
 sub get_pagecount {
     my $o = shift;
     return $o->{pagecount};
 }
-
-=begin pod
 
 =method-access set_variable
 
@@ -2565,14 +2528,12 @@ for client programs.  It is recommended that C<$key> is the module
 name to avoid clashes.  The C<$value> could then be a hash holding any
 number of user variables.
 
-=end pod
+=cut
 
 sub set_variable {
     my ($o, $key, $value) = @_;
     $o->{vars}{$key} = $value;
 }
-
-=begin pod
 
 =method-access get_variable
 
@@ -2580,15 +2541,12 @@ sub set_variable {
 
 Retrieve a user defined value previously assigned by L</set_variable>.
 
-=end pod
-
+=cut
 
 sub get_variable {
     my ($o, $key) = @_;
     return $o->{vars}{$key};
 }
-
-=begin pod
 
 =method-access set_page_variable
 
@@ -2601,14 +2559,12 @@ use this (except to clear it at the start of each page).  It is
 recommended that C<$key> is the module name to avoid clashes.  The
 C<$value> could then be a hash holding any number of user variables.
 
-=end pod
+=cut
 
 sub set_page_variable {
     my ($o, $key, $value) = @_;
     $o->{pagevars}{$key} = $value;
 }
-
-=begin pod
 
 =method-access get_page_variable
 
@@ -2616,14 +2572,12 @@ sub set_page_variable {
 
 Retrieve a user defined value previously assigned by L</set_page_variable>.
 
-=end pod
+=cut
 
 sub get_page_variable {
     my ($o, $key) = @_;
     return $o->{pagevars}{$key};
 }
-
-=begin pod
 
 =method-content get_comments
 
@@ -2631,14 +2585,12 @@ sub get_page_variable {
 
 Retrieve any extra DSC comments added by L</add_comment>.
 
-=end pod
+=cut
 
 sub get_comments {
     my $o = shift;
     return $o->{Comments};
 }
-
-=begin pod
 
 =method-content add_comment
 
@@ -2661,14 +2613,12 @@ Examples:
     $ps->add_comment("ProofMode: NotifyMe");
     $ps->add_comment("Requirements: manualfeed");
 
-=end pod
+=cut
 
 sub add_comment {
     my ($o, $entry) = @_;
     $o->{Comments} .= "\%\%$entry\n" if defined($entry);
 }
-
-=begin pod
 
 =method-content get_preview
 
@@ -2677,14 +2627,12 @@ sub add_comment {
 Returns the EPSI preview of the document, if any, including the
 C<%%BeginPreview> and C<%%EndPreview> comments.
 
-=end pod
+=cut
 
 sub get_preview {
     my $o = shift;
     return $o->{Preview};
 }
-
-=begin pod
 
 =method-content add_preview
 
@@ -2695,7 +2643,7 @@ representation of a bitmap.  Only EPS files should have a preview, but
 that is not enforced.  If an EPS file has a preview it becomes an EPSI
 file rather than EPSF.
 
-=end pod
+=cut
 
 sub add_preview {
   my ($o, $width, $height, $depth, $lines, $entry) = @_;
@@ -2707,22 +2655,18 @@ sub add_preview {
   }
 } # end add_preview
 
-=begin pod
-
 =method-content get_defaults
 
   $comments = $ps->get_defaults
 
 Returns the contents of the DSC Defaults section, if any.
 
-=end pod
+=cut
 
 sub get_defaults {
     my $o = shift;
     return $o->{Defaults};
 }
-
-=begin pod
 
 =method-content add_default
 
@@ -2732,14 +2676,12 @@ Use this to append a PostScript DSC comment to the Defaults section.
 These would be typically values like C<PageCustomColors:> or
 C<PageRequirements:>.  The format is the same as for L</add_comment>.
 
-=end pod
+=cut
 
 sub add_default {
     my ($o, $entry) = @_;
     $o->{Defaults} .= "\%\%$entry\n" if defined($entry);
 }
-
-=begin pod
 
 =method-content get_resources
 
@@ -2748,7 +2690,7 @@ sub add_default {
 Returns all resources provided by this document.  This does not
 include procsets.
 
-=end pod
+=cut
 
 sub get_resources {
     my $o = shift;
@@ -2805,13 +2747,11 @@ END_USER_RESOURCE
     }
 }
 
-=begin pod
-
 =method-content add_resource
 
   $ps->add_resource( $type, $name, $params, $resource )
 
-#over 4
+=over 4
 
 =item C<$type>
 
@@ -2832,7 +2772,7 @@ Some resource types require parameters.  See the Adobe documentation for details
 
 A string containing the PostScript code. Probably best provided a 'here' document.
 
-#=back
+=back
 
 Use this to add fonts or images (although you may prefer L</embed_font>
 or L</embed_document>).  L</add_procset> is provided for functions.
@@ -2844,11 +2784,7 @@ Example
         ...PostScript resource definition
     END_FILE1
 
-=end pod
-
-
-
-=begin pod
+=cut
 
 =method-content get_procsets
 
@@ -2856,7 +2792,7 @@ Example
 
 (v2.20) Return all the procsets defined in this document.
 
-=end pod
+=cut
 
 sub get_procsets
 {
@@ -2882,8 +2818,6 @@ END_USER_FUNCTIONS
     }
     return;
 }
-
-=begin pod
 
 =method-content add_procset
 
@@ -2932,7 +2866,7 @@ including those added by other classes.
 file.  The name should be identical to that given to
 L</add_procset>.
 
-=end pod
+=cut
 
 sub has_procset
 {
@@ -2946,13 +2880,10 @@ sub has_procset
 *get_functions = \&get_procsets;
 *has_function  = \&has_procset;
 
-#=for Pod::Coverage
-=for Pod-Coverage
+=for Pod::Coverage
 add_function
 get_functions
 has_function
-
-=begin pod
 
 =method-content use_functions
 
@@ -2962,7 +2893,7 @@ This requests that the PostScript functions listed in
 C<@function_names> be included in this document.  See
 L<PostScript::File::Functions> for a list of available functions.
 
-=end pod
+=cut
 
 sub use_functions
 {
@@ -2979,8 +2910,6 @@ sub use_functions
   return $o;
 } # end use_functions
 
-=begin pod
-
 =method-content embed_document
 
   $code = $ps->embed_document( $filename )
@@ -2993,7 +2922,7 @@ C<$filename> to the list of document supplied resources.
 You must pass the returned string to add_to_page or some other method
 that will actually include it in the document.
 
-=end pod
+=cut
 
 sub embed_document
 {
@@ -3026,8 +2955,6 @@ sub embed_document
   return "\%\%BeginDocument: $id\n$content\n\%\%EndDocument\n";
 } # end embed_document
 
-=begin pod
-
 =method-content embed_font
 
   $font_name = $ps->embed_font( $filename, [$type] )
@@ -3040,7 +2967,7 @@ If C<$type> is omitted, the C<$filename>'s extension is used as the
 type.  Type names are not case sensitive.  The currently supported
 types are:
 
-#over
+=over
 
 =item PFA
 
@@ -3067,10 +2994,9 @@ printers can handle Type42 fonts.  (Even PostScript level 2 printers
 need not support them.)  Ghostscript does support Type42 fonts (when
 compiled with the C<ttfont> option).
 
-#=back
+=back
 
-=end pod
-
+=cut
 
 sub embed_font
 {
@@ -3109,8 +3035,6 @@ sub embed_font
   return $fontName;
 } # end embed_font
 
-=begin pod
-
 =method-content need_resource
 
   $ps->need_resource( $type, @resources )
@@ -3136,7 +3060,7 @@ If you don't use any of the standard fonts, pass S<C<< need_fonts => [] >>>
 to the constructor (or call C<< $ps->need_resource('font') >>) to
 indicate that.
 
-=end pod
+=cut
 
 sub need_resource
 {
@@ -3156,22 +3080,18 @@ sub need_resource
   } # end foreach $res
 } # end need_resource
 
-=begin pod
-
 =method-content get_setup
 
   $setup = $ps->get_setup
 
 Returns the contents of the DSC Setup section, if any.
 
-=end pod
+=cut
 
 sub get_setup {
     my $o = shift;
     return $o->{Setup};
 }
-
-=begin pod
 
 =method-content add_setup
 
@@ -3181,15 +3101,13 @@ This appends C<$code> to the DSC Setup section.  Use this for
 C<setpagedevice>, C<statusdict> or other settings that initialize the
 device or document.
 
-=end pod
+=cut
 
 sub add_setup {
     my ($o, $entry) = @_;
     $o->strip($entry);
     $o->{Setup} .= $o->encode_text($entry) if (defined $entry);
 }
-
-=begin pod
 
 =method-content get_page_setup
 
@@ -3199,14 +3117,12 @@ Returns the contents of the DSC PageSetup section, if any.  Note that
 this is a document-global value, although the code will be repeated on
 each page.
 
-=end pod
+=cut
 
 sub get_page_setup {
     my $o = shift;
     return $o->{PageSetup};
 }
-
-=begin pod
 
 =method-content add_page_setup
 
@@ -3220,7 +3136,7 @@ Also note that any settings defined here will be active for each page
 separately.  Use L</add_setup> if you want to carry settings from one
 page to another.
 
-=end pod
+=cut
 
 sub add_page_setup {
     my ($o, $entry) = @_;
@@ -3228,15 +3144,13 @@ sub add_page_setup {
     $o->{PageSetup} .= $o->encode_text($entry) if (defined $entry);
 }
 
-=begin pod
-
 =method-content get_page
 
   $code = $ps->get_page( [$page] )
 
 Returns the PostScript code from the body of the page.
 
-=end pod
+=cut
 
 sub get_page {
     my $o = shift;
@@ -3244,8 +3158,6 @@ sub get_page {
     my $ord = $o->_get_ordinal($page);
     return $o->{Pages}->[$ord];
 }
-
-=begin pod
 
 =method-content add_to_page
 
@@ -3273,7 +3185,7 @@ The first example adds code onto the end of the current page.  The
 second one either adds additional code to page 3 if it exists, or
 starts a new one.
 
-=end pod
+=cut
 
 sub add_to_page {
     my $o = shift;
@@ -3291,8 +3203,6 @@ sub add_to_page {
     $o->{Pages}[$o->{p}] .= $o->encode_text($entry);
 }
 
-=begin pod
-
 =method-content get_page_trailer
 
   $code = $ps->get_page_trailer
@@ -3301,14 +3211,12 @@ Returns the contents of the DSC PageTrailer section, if any.  Note that
 this is a document-global value, although the code will be repeated on
 each page.
 
-=end pod
+=cut
 
 sub get_page_trailer {
     my $o = shift;
     return $o->{PageTrailer};
 }
-
-=begin pod
 
 =method-content add_page_trailer
 
@@ -3321,7 +3229,7 @@ page.
 Code added here is output after each page.  It may refer to settings
 made during L</add_page_setup> or L</add_to_page>.
 
-=end pod
+=cut
 
 sub add_page_trailer {
     my ($o, $entry) = @_;
@@ -3329,22 +3237,18 @@ sub add_page_trailer {
     $o->{PageTrailer} .= $o->encode_text($entry) if (defined $entry);
 }
 
-=begin pod
-
 =method-content get_trailer
 
   $code = $ps->get_trailer
 
 Returns the contents of the document's DSC Trailer section, if any.
 
-=end pod
+=cut
 
 sub get_trailer {
     my $o = shift;
     return $o->{Trailer};
 }
-
-=begin pod
 
 =method-content add_trailer
 
@@ -3353,7 +3257,7 @@ sub get_trailer {
 Appends C<$code> to the document's DSC Trailer section.  Use this for
 any tidying up after all the pages are output.
 
-=end pod
+=cut
 
 sub add_trailer {
     my ($o, $entry) = @_;
@@ -3362,8 +3266,6 @@ sub add_trailer {
 }
 
 #=============================================================================
-
-=begin pod
 
 =head1 POSTSCRIPT DEBUGGING SUPPORT
 
@@ -3517,17 +3419,15 @@ Moves output right by C<db_xtab>.  No stack requirements.  Useful for indenting 
 
 Moves output left by C<db_xtab>.  No stack requirements.
 
-=end pod
-
-#=for Pod::Coverage
-=for Pod-Coverage
+=for Pod::Coverage
 clip_bounding_box
 draw_bounding_box
 
+=cut
+
 sub draw_bounding_box {
     my $o = shift;
-    #$o->{clipcmd} = "stroke";
-    $o{clipcmd} = "stroke";
+    $o->{clipcmd} = "stroke";
 }
 
 sub clip_bounding_box {
@@ -3553,8 +3453,6 @@ sub _here_doc
   $o->encode_text($text);
 } # end _here_doc
 
-=begin pod
-
 =head1 EXPORTS
 
 No functions are exported by default.  All the functions listed in
@@ -3574,15 +3472,13 @@ applies to values that match C</^[a-zA-Z]*[0-9]*\z/>.)
 
 This function is the default value of the L</incpage_handler> attribute.
 
-=end pod
+=cut
 
 sub incpage_label ($) { ## no critic (ProhibitSubroutinePrototypes)
     my $page = shift;
     return ++$page;
 }
 #---------------------------------------------------------------------
-
-=begin pod
 
 =sub incpage_roman
 
@@ -3598,7 +3494,7 @@ attribute:
 
   $ps->set_incpage_handler( \&PostScript::File::incpage_roman )
 
-=end pod
+=cut
 
 our $roman_max = 40;
 our @roman = qw(0 i ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix
@@ -3616,13 +3512,11 @@ sub incpage_roman ($) { ## no critic (ProhibitSubroutinePrototypes)
 }
 #---------------------------------------------------------------------
 
-=begin pod
-
 =sub check_file
 
   $pathname = check_file( $file, [$dir, [$create]] )
 
-#over 4
+=over 4
 
 =item C<$file>
 
@@ -3639,7 +3533,7 @@ an absolute path), it is prepended to C<$file>.
 
 If true, create the file if it doesn't exist already.  (Default: false)
 
-#=back
+=back
 
 This converts a filename and optional directory to an absolute path,
 and then creates any directories that don't already exist.  Any
@@ -3651,7 +3545,7 @@ as an empty file.
 
 L<File::Spec> is used throughout so file access should be portable.
 
-=end pod
+=cut
 
 sub check_file ($;$$) { ## no critic (ProhibitSubroutinePrototypes)
     my ($filename, $dir, $create) = @_;
@@ -3696,15 +3590,13 @@ sub check_file ($;$$) { ## no critic (ProhibitSubroutinePrototypes)
     return $filename;
 }
 
-=begin pod
-
 =sub check_tilde
 
   $expanded_path = check_tilde( $path )
 
 Expands a leading C<~> or C<~user> in C<$path> to the home directory.
 
-=end pod
+=cut
 
 sub check_tilde ($) { ## no critic (ProhibitSubroutinePrototypes)
     my ($dir) = @_;
@@ -3712,8 +3604,6 @@ sub check_tilde ($) { ## no critic (ProhibitSubroutinePrototypes)
     $dir =~ s{^~([^/]*)}{$1 ? (getpwnam($1))[7] : ($ENV{HOME} || $ENV{LOGDIR} || (getpwuid($>))[7]) }ex;
     return $dir;
 }
-
-=begin pod
 
 =sub array_as_string
 
@@ -3725,7 +3615,7 @@ do something like:
 
   $code = array_as_string( map { $ps->pstr($_) } @array )
 
-=end pod
+=cut
 
 sub array_as_string (@) { ## no critic (ProhibitSubroutinePrototypes)
     my $array = "[ ";
@@ -3733,8 +3623,6 @@ sub array_as_string (@) { ## no critic (ProhibitSubroutinePrototypes)
     $array .= "]";
     return $array;
 }
-
-=begin pod
 
 =sub str
 
@@ -3746,7 +3634,7 @@ simplify passing colors to the PostScript function
 L<PostScript::File::Functions/setColor>, which expects either an RGB
 array or a greyscale decimal.
 
-=end pod
+=cut
 
 sub str ($) { ## no critic (ProhibitSubroutinePrototypes)
     my $arg = shift;
@@ -3784,8 +3672,6 @@ sub pstr {
 
   $string;
 } # end pstr
-
-=begin pod
 
 =method-text pstr
 
@@ -3826,7 +3712,7 @@ returned unchanged.
 This may also be called as a class or object method, but it does not
 do hyphen-minus translation, even if L</auto_hyphen> is true.
 
-=end pod
+=cut
 
 sub quote_text
 {
@@ -3841,9 +3727,9 @@ sub quote_text
 } # end quote_text
 
 #=============================================================================
-#1;
+1;
 
-=begin pod
+__END__
 
 =head1 VERSION
 
@@ -3863,16 +3749,16 @@ reading and writing.  The read accessor is prefixed with C<get_>, and
 the write accessor is prefixed with C<set_>.  If no write accessor is
 mentioned, then the attribute is read-only.
 
-#=begin Pod::Loom-group_attr *
+=begin Pod::Loom-group_attr *
 
-#=begin Pod::Loom-group_attr paper
+=begin Pod::Loom-group_attr paper
 
 =head2 Paper Size and Margins
 
 These attributes are interrelated, and changing one may change the
 others.
 
-#=begin Pod::Loom-group_attr page
+=begin Pod::Loom-group_attr page
 
 =head2 Page Attributes
 
@@ -3887,25 +3773,25 @@ C<$page> is omitted, it defaults to the current page.
 Note: In the following descriptions, C<[]> are used to denote optional
 parameters, I<not> array references.
 
-#=begin Pod::Loom-group_method construct
+=begin Pod::Loom-group_method construct
 
 =head2 Constructor
 
-#=begin Pod::Loom-group_method main
+=begin Pod::Loom-group_method main
 
 =head2 Main Methods
 
-#=begin Pod::Loom-group_method access
+=begin Pod::Loom-group_method access
 
 =head2 Access Methods
 
 Use these C<get_> and C<set_> methods to access a PostScript::File object's data.
 
-#=begin Pod::Loom-group_method content
+=begin Pod::Loom-group_method content
 
 =head2 Content Methods
 
-#=begin Pod::Loom-group_method text
+=begin Pod::Loom-group_method text
 
 =head2 Text Processing Methods
 
@@ -3970,8 +3856,7 @@ L<PostScript::Graph::Bar>,
 L<PostScript::Graph::Stock>.
 
 
-#=for Pod::Loom-sections
-=for Pod-Loom-sections
+=for Pod::Loom-sections
 NAME
 VERSION
 SYNOPSIS
@@ -3987,4 +3872,4 @@ COPYRIGHT AND LICENSE
 SEE ALSO
 DISCLAIMER OF WARRANTY
 
-=end pod
+=cut
