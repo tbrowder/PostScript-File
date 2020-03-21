@@ -1,21 +1,18 @@
 {
     "perl"        : "6.*",
-    "name"        : "Draw2D::Furniture",
+    "name"        : "PostScript::File",
     "version"     : "1.0.0",
-    "description" : "Provides custom, scaled furniture outlines for home and office planning",
+    "description" : "Provides tools for creating PostScript files",
     "auth"        : "github:tbrowder",
     "author"      : "github:tbrowder",
     "authors"     : [ "Tom Browder <tom.browder@gmail.com>" ],
     "license"     : "Artistic-2.0",
-    "source-url"  : "https://github.com/tbrowder/Draw2D-Furniture-Raku.git",
+    "source-url"  : "https://github.com/tbrowder/PostScript-File-Raku.git",
     "support"     : {
-        "bugtracker" : "https://github.com/tbrowder/Draw2D-Furniture-Raku/issues"
+        "bugtracker" : "https://github.com/tbrowder/PostScript-File-Raku/issues"
     },
     "provides"    : {
-        "Draw2D::Furniture"          : "lib/Draw2D/Furniture.rakumod",
-        "Draw2D::Furniture::Classes" : "lib/Draw2D/Furniture/Classes.rakumod",
-        "Draw2D::Furniture::Vars"    : "lib/Draw2D/Furniture/Vars.rakumod",
-        "draw2d-output"              : "bin/draw2d-output"
+        "PostScript::File" : "lib/PostScript/File.rakumod"
     },
     "test-depends" : [
 	"Test::META"
@@ -27,10 +24,6 @@
     "resources" : [
     ],
     "tags" : [
-	"drawing",
-	"design",
-        "furniture",
-	"house/office planning",
 	"PostScript"
     ]
 }
