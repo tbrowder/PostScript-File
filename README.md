@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/tbrowder/PostScript-File-Raku.svg?branch=master)](https://travis-ci.com/tbrowder/PostScript-File-Raku)
+
 # PostScript::File
 
 Raku version of Perl's PostScript::File
